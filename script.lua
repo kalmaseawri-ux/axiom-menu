@@ -1,6 +1,11 @@
 
--- AXIOM CONTROL V3
--- For your own Roblox Studio game
+--[[
+    AXIOM ULTIMATE CONTROL V4
+    Place as a LocalScript in:
+    StarterPlayer > StarterPlayerScripts
+
+    Designed for your own Roblox Studio game.
+]]
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -9,233 +14,371 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local old = playerGui:FindFirstChild("AXIOM_V3")
+local CONFIG = {
+    DefaultSpeed = 16,
+    MinSpeed = 8,
+    MaxSpeed = 100,
+    FlySpeed = 55,
+    Accent = Color3.fromRGB(0, 190, 255),
+    Background = Color3.fromRGB(13, 16, 26),
+    Panel = Color3.fromRGB(24, 29, 43),
+    Button = Color3.fromRGB(35, 43, 61),
+}
+
+local old = playerGui:FindFirstChild("AXIOM_ULTIMATE")
 if old then old:Destroy() end
 
+local state = {
+    flying = false,
+    speedEnabled = false,
+    speed = CONFIG.DefaultSpeed,
+    connections = {},
+}
+
+local function track(connection)
+    table.insert(state.connections, connection)
+    return connection
+end
+
+local function getCharacter()
+    local character = player.Character
+    if not character then return end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:FindFirstChild("HumanoidRootPart")
+
+    return character, humanoid, root
+end
+
+-- GUI root
 local gui = Instance.new("ScreenGui")
-gui.Name = "AXIOM_V3"
+gui.Name = "AXIOM_ULTIMATE"
 gui.ResetOnSpawn = false
+gui.DisplayOrder = 100
 gui.Parent = playerGui
 
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(330, 390)
-main.Position = UDim2.new(0.5, -165, 0.5, -195)
-main.BackgroundColor3 = Color3.fromRGB(20, 23, 34)
+main.Name = "Main"
+main.Size = UDim2.fromOffset(350, 440)
+main.Position = UDim2.new(0.5, -175, 0.5, -220)
+main.BackgroundColor3 = CONFIG.Background
 main.BorderSizePixel = 0
 main.Parent = gui
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
 
-local stroke = Instance.new("UIStroke", main)
-stroke.Color = Color3.fromRGB(65, 140, 255)
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
+
+local outline = Instance.new("UIStroke")
+outline.Color = CONFIG.Accent
+outline.Thickness = 1.5
+outline.Parent = main
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 58)
+header.BackgroundColor3 = CONFIG.Panel
+header.BorderSizePixel = 0
+header.Parent = main
+Instance.new("UICorner", header).CornerRadius = UDim.new(0, 14)
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -20, 0, 45)
-title.Position = UDim2.fromOffset(12, 0)
+title.Size = UDim2.new(1, -65, 1, 0)
+title.Position = UDim2.fromOffset(16, 0)
 title.BackgroundTransparency = 1
-title.Text = "AXIOM CONTROL V3"
-title.TextColor3 = Color3.fromRGB(115, 175, 255)
+title.Text = "AXIOM // CONTROL"
+title.TextColor3 = CONFIG.Accent
 title.Font = Enum.Font.GothamBold
 title.TextSize = 19
 title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = main
+title.Parent = header
 
-local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -24, 0, 28)
-status.Position = UDim2.new(0, 12, 1, -34)
-status.BackgroundTransparency = 1
-status.Text = "STATUS: READY"
-status.TextColor3 = Color3.fromRGB(100, 220, 160)
-status.Font = Enum.Font.Gotham
-status.TextSize = 12
-status.Parent = main
+local close = Instance.new("TextButton")
+close.Size = UDim2.fromOffset(36, 36)
+close.Position = UDim2.new(1, -46, 0, 11)
+close.Text = "×"
+close.TextSize = 24
+close.Font = Enum.Font.GothamBold
+close.TextColor3 = Color3.new(1, 1, 1)
+close.BackgroundColor3 = CONFIG.Button
+close.Parent = header
+Instance.new("UICorner", close).CornerRadius = UDim.new(0, 9)
 
-local content = Instance.new("Frame")
-content.Position = UDim2.fromOffset(12, 52)
-content.Size = UDim2.new(1, -24, 1, -94)
+local content = Instance.new("ScrollingFrame")
+content.Position = UDim2.fromOffset(14, 70)
+content.Size = UDim2.new(1, -28, 1, -120)
 content.BackgroundTransparency = 1
+content.BorderSizePixel = 0
+content.ScrollBarThickness = 4
+content.ScrollBarImageColor3 = CONFIG.Accent
+content.CanvasSize = UDim2.new()
+content.AutomaticCanvasSize = Enum.AutomaticSize.Y
 content.Parent = main
 
 local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 8)
+layout.Padding = UDim.new(0, 9)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = content
 
-local function button(text, callback)
+local status = Instance.new("TextLabel")
+status.Position = UDim2.new(0, 14, 1, -42)
+status.Size = UDim2.new(1, -28, 0, 28)
+status.BackgroundTransparency = 1
+status.Text = "● SYSTEM READY"
+status.TextColor3 = Color3.fromRGB(100, 230, 170)
+status.Font = Enum.Font.GothamMedium
+status.TextSize = 12
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = main
+
+local function setStatus(message, color)
+    status.Text = "● " .. message
+    status.TextColor3 = color or Color3.fromRGB(100, 230, 170)
+end
+
+local function createButton(text, callback)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, 0, 0, 40)
-    b.BackgroundColor3 = Color3.fromRGB(38, 44, 61)
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.Font = Enum.Font.GothamMedium
-    b.TextSize = 14
+    b.Size = UDim2.new(1, -2, 0, 42)
+    b.BackgroundColor3 = CONFIG.Button
+    b.TextColor3 = Color3.fromRGB(240, 245, 255)
     b.Text = text
+    b.Font = Enum.Font.GothamMedium
+    b.TextSize = 13
+    b.AutoButtonColor = true
     b.Parent = content
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
-    b.Activated:Connect(callback)
+
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 9)
+
+    local edge = Instance.new("UIStroke")
+    edge.Color = Color3.fromRGB(48, 63, 86)
+    edge.Thickness = 1
+    edge.Parent = b
+
+    b.Activated:Connect(function()
+        local ok, err = pcall(callback)
+        if not ok then
+            warn("[AXIOM] " .. tostring(err))
+            setStatus("ACTION FAILED", Color3.fromRGB(255, 100, 100))
+        end
+    end)
+
     return b
 end
 
--- Speed control
-local speedBox = Instance.new("TextBox")
-speedBox.Size = UDim2.new(1, 0, 0, 38)
-speedBox.BackgroundColor3 = Color3.fromRGB(38, 44, 61)
-speedBox.TextColor3 = Color3.new(1, 1, 1)
-speedBox.PlaceholderText = "Speed: 16 - 100"
-speedBox.Text = "28"
-speedBox.Font = Enum.Font.Gotham
-speedBox.TextSize = 14
-speedBox.ClearTextOnFocus = false
-speedBox.Parent = content
-Instance.new("UICorner", speedBox).CornerRadius = UDim.new(0, 8)
+local function createSection(text)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 24)
+    label.BackgroundTransparency = 1
+    label.Text = "— " .. text
+    label.TextColor3 = CONFIG.Accent
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = content
+    return label
+end
 
-button("APPLY WALK SPEED", function()
-    local speed = tonumber(speedBox.Text)
-    local character = player.Character
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+-- Speed controls
+createSection("MOVEMENT")
 
-    if not speed or speed < 16 or speed > 100 then
-        status.Text = "STATUS: ENTER 16 - 100"
+local speedInput = Instance.new("TextBox")
+speedInput.Size = UDim2.new(1, -2, 0, 40)
+speedInput.BackgroundColor3 = CONFIG.Panel
+speedInput.TextColor3 = Color3.new(1, 1, 1)
+speedInput.PlaceholderText = "WalkSpeed: 8 - 100"
+speedInput.Text = tostring(CONFIG.DefaultSpeed)
+speedInput.ClearTextOnFocus = false
+speedInput.Font = Enum.Font.Gotham
+speedInput.TextSize = 14
+speedInput.Parent = content
+Instance.new("UICorner", speedInput).CornerRadius = UDim.new(0, 9)
+
+createButton("APPLY WALK SPEED", function()
+    local value = tonumber(speedInput.Text)
+    if not value or value < CONFIG.MinSpeed or value > CONFIG.MaxSpeed then
+        setStatus("ENTER SPEED 8 - 100", Color3.fromRGB(255, 180, 80))
         return
     end
 
+    local _, humanoid = getCharacter()
+    if not humanoid then
+        setStatus("CHARACTER NOT FOUND", Color3.fromRGB(255, 100, 100))
+        return
+    end
+
+    state.speed = value
+    state.speedEnabled = true
+    humanoid.WalkSpeed = value
+    setStatus("WALKSPEED: " .. value)
+end)
+
+createButton("RESET WALK SPEED", function()
+    local _, humanoid = getCharacter()
     if humanoid then
-        humanoid.WalkSpeed = speed
-        status.Text = "STATUS: SPEED " .. speed
-    else
-        status.Text = "STATUS: CHARACTER NOT FOUND"
+        state.speed = CONFIG.DefaultSpeed
+        state.speedEnabled = false
+        humanoid.WalkSpeed = CONFIG.DefaultSpeed
+        speedInput.Text = tostring(CONFIG.DefaultSpeed)
+        setStatus("WALKSPEED RESET")
     end
 end)
 
--- Fly controls for your own game
-local flying = false
+-- Fly mode for the developer's own game
+createSection("FLIGHT")
+
+local flyVelocity
+local flyGyro
 local flyConnection
-local velocity
-local gyro
-local root
-local humanoid
 
 local function stopFly()
-    flying = false
+    state.flying = false
+
     if flyConnection then
         flyConnection:Disconnect()
         flyConnection = nil
     end
-    if velocity then velocity:Destroy(); velocity = nil end
-    if gyro then gyro:Destroy(); gyro = nil end
 
-    local character = player.Character
-    local h = character and character:FindFirstChildOfClass("Humanoid")
-    if h then
-        h.PlatformStand = false
-        h:ChangeState(Enum.HumanoidStateType.GettingUp)
+    if flyVelocity then
+        flyVelocity:Destroy()
+        flyVelocity = nil
     end
-    status.Text = "STATUS: FLY OFF"
+
+    if flyGyro then
+        flyGyro:Destroy()
+        flyGyro = nil
+    end
+
+    local _, humanoid = getCharacter()
+    if humanoid then
+        humanoid.PlatformStand = false
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+
+    setStatus("FLIGHT DISABLED")
 end
 
 local function startFly()
-    local character = player.Character
-    humanoid = character and character:FindFirstChildOfClass("Humanoid")
-    root = character and character:FindFirstChild("HumanoidRootPart")
-
+    local _, humanoid, root = getCharacter()
     if not humanoid or not root then
-        status.Text = "STATUS: CHARACTER NOT FOUND"
+        setStatus("CHARACTER NOT FOUND", Color3.fromRGB(255, 100, 100))
         return
     end
 
-    flying = true
+    if state.flying then return end
+    state.flying = true
     humanoid.PlatformStand = true
 
-    velocity = Instance.new("BodyVelocity")
-    velocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
-    velocity.Velocity = Vector3.zero
-    velocity.Parent = root
+    flyVelocity = Instance.new("BodyVelocity")
+    flyVelocity.Name = "AxiomFlightVelocity"
+    flyVelocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    flyVelocity.Velocity = Vector3.zero
+    flyVelocity.Parent = root
 
-    gyro = Instance.new("BodyGyro")
-    gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
-    gyro.P = 1e4
-    gyro.CFrame = workspace.CurrentCamera.CFrame
-    gyro.Parent = root
+    flyGyro = Instance.new("BodyGyro")
+    flyGyro.Name = "AxiomFlightGyro"
+    flyGyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+    flyGyro.P = 15000
+    flyGyro.CFrame = workspace.CurrentCamera.CFrame
+    flyGyro.Parent = root
 
     flyConnection = RunService.RenderStepped:Connect(function()
-        if not flying or not root or not root.Parent then
+        if not state.flying or not root.Parent then
             stopFly()
             return
         end
 
         local camera = workspace.CurrentCamera
-        local move = Vector3.zero
+        local direction = Vector3.zero
 
         if UIS:IsKeyDown(Enum.KeyCode.W) then
-            move += camera.CFrame.LookVector
+            direction += camera.CFrame.LookVector
         end
         if UIS:IsKeyDown(Enum.KeyCode.S) then
-            move -= camera.CFrame.LookVector
-        end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then
-            move += camera.CFrame.RightVector
+            direction -= camera.CFrame.LookVector
         end
         if UIS:IsKeyDown(Enum.KeyCode.A) then
-            move -= camera.CFrame.RightVector
+            direction -= camera.CFrame.RightVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then
+            direction += camera.CFrame.RightVector
         end
         if UIS:IsKeyDown(Enum.KeyCode.Space) then
-            move += Vector3.yAxis
+            direction += Vector3.yAxis
         end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
-            move -= Vector3.yAxis
+            direction -= Vector3.yAxis
         end
 
-        velocity.Velocity = move.Magnitude > 0
-            and move.Unit * 50 or Vector3.zero
+        flyVelocity.Velocity = direction.Magnitude > 0
+            and direction.Unit * CONFIG.FlySpeed
+            or Vector3.zero
 
-        gyro.CFrame = camera.CFrame
+        flyGyro.CFrame = camera.CFrame
     end)
 
-    status.Text = "STATUS: FLY ON - WASD / SPACE / CTRL"
+    setStatus("FLIGHT ENABLED: WASD / SPACE / CTRL")
 end
 
-button("FLY: TOGGLE", function()
-    if flying then
+createButton("FLIGHT: ON / OFF", function()
+    if state.flying then
         stopFly()
     else
         startFly()
     end
 end)
 
-button("RESET WALK SPEED", function()
-    local character = player.Character
-    local h = character and character:FindFirstChildOfClass("Humanoid")
-    if h then
-        h.WalkSpeed = 16
-        speedBox.Text = "16"
-        status.Text = "STATUS: SPEED RESET"
+-- Character tools
+createSection("CHARACTER")
+
+createButton("CHECK CHARACTER", function()
+    local character, humanoid, root = getCharacter()
+    if character and humanoid and root then
+        setStatus("CHARACTER READY")
+    else
+        setStatus("CHARACTER INCOMPLETE", Color3.fromRGB(255, 180, 80))
     end
 end)
 
-button("CLOSE MENU", function()
-    main.Visible = false
-    reopen.Visible = true
+createButton("RESET CHARACTER", function()
+    local _, humanoid = getCharacter()
+    if humanoid then
+        stopFly()
+        humanoid.Health = 0
+        setStatus("CHARACTER RESET")
+    end
 end)
 
+createButton("RESET WINDOW POSITION", function()
+    main.Position = UDim2.new(0.5, -175, 0.5, -220)
+    setStatus("WINDOW POSITION RESET")
+end)
+
+-- Minimize / restore
 local reopen = Instance.new("TextButton")
-reopen.Size = UDim2.fromOffset(115, 38)
-reopen.Position = UDim2.new(0, 12, 0.5, 0)
-reopen.Text = "OPEN AXIOM"
+reopen.Size = UDim2.fromOffset(125, 40)
+reopen.Position = UDim2.new(0, 16, 0.5, -20)
+reopen.BackgroundColor3 = Color3.fromRGB(15, 75, 130)
 reopen.TextColor3 = Color3.new(1, 1, 1)
-reopen.BackgroundColor3 = Color3.fromRGB(35, 95, 200)
+reopen.Text = "OPEN AXIOM"
 reopen.Font = Enum.Font.GothamBold
 reopen.TextSize = 12
 reopen.Visible = false
 reopen.Parent = gui
-Instance.new("UICorner", reopen).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", reopen).CornerRadius = UDim.new(0, 9)
+
+close.Activated:Connect(function()
+    main.Visible = false
+    reopen.Visible = true
+end)
 
 reopen.Activated:Connect(function()
     main.Visible = true
     reopen.Visible = false
 end)
 
--- Drag the window by its title
-local dragging, dragStart, startPosition
+-- Drag window by header
+local dragging = false
+local dragStart
+local startPosition
 
-title.InputBegan:Connect(function(input)
+header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
@@ -243,7 +386,7 @@ title.InputBegan:Connect(function(input)
     end
 end)
 
-UIS.InputChanged:Connect(function(input)
+track(UIS.InputChanged:Connect(function(input)
     if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
         local delta = input.Position - dragStart
         main.Position = UDim2.new(
@@ -253,16 +396,28 @@ UIS.InputChanged:Connect(function(input)
             startPosition.Y.Offset + delta.Y
         )
     end
-end)
+end))
 
-UIS.InputEnded:Connect(function(input)
+track(UIS.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = false
     end
-end)
+end))
 
-player.CharacterAdded:Connect(function()
-    if flying then stopFly() end
-end)
+track(player.CharacterAdded:Connect(function(character)
+    if state.flying then stopFly() end
 
-print("[AXIOM] V3 menu loaded")
+    local humanoid = character:WaitForChild("Humanoid", 10)
+    if humanoid and state.speedEnabled then
+        humanoid.WalkSpeed = state.speed
+    end
+end))
+
+track(gui.Destroying:Connect(function()
+    stopFly()
+    for _, connection in ipairs(state.connections) do
+        connection:Disconnect()
+    end
+end))
+
+print("[AXIOM] Ultimate Control loaded successfully")
