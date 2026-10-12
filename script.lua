@@ -1,79 +1,223 @@
 
---================================================
--- AXIOM CONTROL MENU v2.0
--- Roblox Studio | LocalScript
---================================================
+-- AXIOM CONTROL V3
+-- For your own Roblox Studio game
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
-if not player then
-    warn("[AXIOM] This script must run on the client.")
-    return
-end
-
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Remove previous instance
-local previous = playerGui:FindFirstChild("AXIOM_V2")
-if previous then
-    previous:Destroy()
-end
+local old = playerGui:FindFirstChild("AXIOM_V3")
+if old then old:Destroy() end
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "AXIOM_V2"
+gui.Name = "AXIOM_V3"
 gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = false
-gui.DisplayOrder = 999
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = playerGui
 
 local main = Instance.new("Frame")
-main.Name = "Main"
-main.Size = UDim2.fromOffset(320, 330)
-main.Position = UDim2.new(0.5, -160, 0.5, -165)
+main.Size = UDim2.fromOffset(330, 390)
+main.Position = UDim2.new(0.5, -165, 0.5, -195)
 main.BackgroundColor3 = Color3.fromRGB(20, 23, 34)
 main.BorderSizePixel = 0
-main.Visible = true
 main.Parent = gui
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
 
-Instance.new("UICorner", main).CornerRadius =
-    UDim.new(0, 12)
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(65, 140, 255)
 
-local border = Instance.new("UIStroke")
-border.Color = Color3.fromRGB(65, 140, 255)
-border.Thickness = 1.5
-border.Parent = main
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 45)
+title.Position = UDim2.fromOffset(12, 0)
+title.BackgroundTransparency = 1
+title.Text = "AXIOM CONTROL V3"
+title.TextColor3 = Color3.fromRGB(115, 175, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 19
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = main
 
-local header = Instance.new("TextLabel")
-header.Name = "Header"
-header.Size = UDim2.new(1, -55, 0, 48)
-header.Position = UDim2.fromOffset(15, 0)
-header.BackgroundTransparency = 1
-header.Text = "AXIOM CONTROL"
-header.TextColor3 = Color3.fromRGB(115, 175, 255)
-header.Font = Enum.Font.GothamBold
-header.TextSize = 19
-header.TextXAlignment = Enum.TextXAlignment.Left
-header.Parent = main
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -24, 0, 28)
+status.Position = UDim2.new(0, 12, 1, -34)
+status.BackgroundTransparency = 1
+status.Text = "STATUS: READY"
+status.TextColor3 = Color3.fromRGB(100, 220, 160)
+status.Font = Enum.Font.Gotham
+status.TextSize = 12
+status.Parent = main
 
-local close = Instance.new("TextButton")
-close.Size = UDim2.fromOffset(34, 34)
-close.Position = UDim2.new(1, -42, 0, 7)
-close.Text = "X"
-close.TextColor3 = Color3.new(1, 1, 1)
-close.BackgroundColor3 = Color3.fromRGB(55, 60, 78)
-close.Font = Enum.Font.GothamBold
-close.TextSize = 15
-close.Parent = main
+local content = Instance.new("Frame")
+content.Position = UDim2.fromOffset(12, 52)
+content.Size = UDim2.new(1, -24, 1, -94)
+content.BackgroundTransparency = 1
+content.Parent = main
 
-Instance.new("UICorner", close).CornerRadius =
-    UDim.new(0, 8)
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = content
+
+local function button(text, callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, 40)
+    b.BackgroundColor3 = Color3.fromRGB(38, 44, 61)
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.Font = Enum.Font.GothamMedium
+    b.TextSize = 14
+    b.Text = text
+    b.Parent = content
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    b.Activated:Connect(callback)
+    return b
+end
+
+-- Speed control
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(1, 0, 0, 38)
+speedBox.BackgroundColor3 = Color3.fromRGB(38, 44, 61)
+speedBox.TextColor3 = Color3.new(1, 1, 1)
+speedBox.PlaceholderText = "Speed: 16 - 100"
+speedBox.Text = "28"
+speedBox.Font = Enum.Font.Gotham
+speedBox.TextSize = 14
+speedBox.ClearTextOnFocus = false
+speedBox.Parent = content
+Instance.new("UICorner", speedBox).CornerRadius = UDim.new(0, 8)
+
+button("APPLY WALK SPEED", function()
+    local speed = tonumber(speedBox.Text)
+    local character = player.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if not speed or speed < 16 or speed > 100 then
+        status.Text = "STATUS: ENTER 16 - 100"
+        return
+    end
+
+    if humanoid then
+        humanoid.WalkSpeed = speed
+        status.Text = "STATUS: SPEED " .. speed
+    else
+        status.Text = "STATUS: CHARACTER NOT FOUND"
+    end
+end)
+
+-- Fly controls for your own game
+local flying = false
+local flyConnection
+local velocity
+local gyro
+local root
+local humanoid
+
+local function stopFly()
+    flying = false
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    if velocity then velocity:Destroy(); velocity = nil end
+    if gyro then gyro:Destroy(); gyro = nil end
+
+    local character = player.Character
+    local h = character and character:FindFirstChildOfClass("Humanoid")
+    if h then
+        h.PlatformStand = false
+        h:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+    status.Text = "STATUS: FLY OFF"
+end
+
+local function startFly()
+    local character = player.Character
+    humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    root = character and character:FindFirstChild("HumanoidRootPart")
+
+    if not humanoid or not root then
+        status.Text = "STATUS: CHARACTER NOT FOUND"
+        return
+    end
+
+    flying = true
+    humanoid.PlatformStand = true
+
+    velocity = Instance.new("BodyVelocity")
+    velocity.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+    velocity.Velocity = Vector3.zero
+    velocity.Parent = root
+
+    gyro = Instance.new("BodyGyro")
+    gyro.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+    gyro.P = 1e4
+    gyro.CFrame = workspace.CurrentCamera.CFrame
+    gyro.Parent = root
+
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not flying or not root or not root.Parent then
+            stopFly()
+            return
+        end
+
+        local camera = workspace.CurrentCamera
+        local move = Vector3.zero
+
+        if UIS:IsKeyDown(Enum.KeyCode.W) then
+            move += camera.CFrame.LookVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then
+            move -= camera.CFrame.LookVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then
+            move += camera.CFrame.RightVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then
+            move -= camera.CFrame.RightVector
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then
+            move += Vector3.yAxis
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+            move -= Vector3.yAxis
+        end
+
+        velocity.Velocity = move.Magnitude > 0
+            and move.Unit * 50 or Vector3.zero
+
+        gyro.CFrame = camera.CFrame
+    end)
+
+    status.Text = "STATUS: FLY ON - WASD / SPACE / CTRL"
+end
+
+button("FLY: TOGGLE", function()
+    if flying then
+        stopFly()
+    else
+        startFly()
+    end
+end)
+
+button("RESET WALK SPEED", function()
+    local character = player.Character
+    local h = character and character:FindFirstChildOfClass("Humanoid")
+    if h then
+        h.WalkSpeed = 16
+        speedBox.Text = "16"
+        status.Text = "STATUS: SPEED RESET"
+    end
+end)
+
+button("CLOSE MENU", function()
+    main.Visible = false
+    reopen.Visible = true
+end)
 
 local reopen = Instance.new("TextButton")
-reopen.Size = UDim2.fromOffset(100, 38)
-reopen.Position = UDim2.new(0, 16, 0.5, -19)
+reopen.Size = UDim2.fromOffset(115, 38)
+reopen.Position = UDim2.new(0, 12, 0.5, 0)
 reopen.Text = "OPEN AXIOM"
 reopen.TextColor3 = Color3.new(1, 1, 1)
 reopen.BackgroundColor3 = Color3.fromRGB(35, 95, 200)
@@ -81,26 +225,17 @@ reopen.Font = Enum.Font.GothamBold
 reopen.TextSize = 12
 reopen.Visible = false
 reopen.Parent = gui
-
-Instance.new("UICorner", reopen).CornerRadius =
-    UDim.new(0, 8)
-
-close.Activated:Connect(function()
-    main.Visible = false
-    reopen.Visible = true
-end)
+Instance.new("UICorner", reopen).CornerRadius = UDim.new(0, 8)
 
 reopen.Activated:Connect(function()
     main.Visible = true
     reopen.Visible = false
 end)
 
--- Drag window
-local dragging = false
-local dragStart
-local startPosition
+-- Drag the window by its title
+local dragging, dragStart, startPosition
 
-header.InputBegan:Connect(function(input)
+title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
@@ -109,11 +244,8 @@ header.InputBegan:Connect(function(input)
 end)
 
 UIS.InputChanged:Connect(function(input)
-    if dragging and
-        input.UserInputType == Enum.UserInputType.MouseMovement then
-
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
         local delta = input.Position - dragStart
-
         main.Position = UDim2.new(
             startPosition.X.Scale,
             startPosition.X.Offset + delta.X,
@@ -129,84 +261,8 @@ UIS.InputEnded:Connect(function(input)
     end
 end)
 
-local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -30, 0, 215)
-content.Position = UDim2.fromOffset(15, 58)
-content.BackgroundTransparency = 1
-content.Parent = main
-
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 9)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Parent = content
-
-local function makeButton(label, callback)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 0, 40)
-    button.BackgroundColor3 = Color3.fromRGB(38, 44, 61)
-    button.TextColor3 = Color3.fromRGB(240, 243, 255)
-    button.Text = label
-    button.Font = Enum.Font.GothamMedium
-    button.TextSize = 14
-    button.AutoButtonColor = true
-    button.Parent = content
-
-    Instance.new("UICorner", button).CornerRadius =
-        UDim.new(0, 8)
-
-    button.Activated:Connect(callback)
-    return button
-end
-
-local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -30, 0, 32)
-status.Position = UDim2.new(0, 15, 1, -40)
-status.BackgroundTransparency = 1
-status.Text = "STATUS: READY"
-status.TextColor3 = Color3.fromRGB(100, 220, 160)
-status.Font = Enum.Font.Gotham
-status.TextSize = 12
-status.Parent = main
-
-makeButton("CHECK CHARACTER", function()
-    local character = player.Character
-    local humanoid = character and
-        character:FindFirstChildOfClass("Humanoid")
-
-    if humanoid then
-        status.Text = "STATUS: CHARACTER READY"
-    else
-        status.Text = "STATUS: CHARACTER NOT FOUND"
-    end
+player.CharacterAdded:Connect(function()
+    if flying then stopFly() end
 end)
 
-makeButton("WALK SPEED: TOGGLE", function()
-    local character = player.Character
-    local humanoid = character and
-        character:FindFirstChildOfClass("Humanoid")
-
-    if not humanoid then
-        status.Text = "STATUS: CHARACTER NOT FOUND"
-        return
-    end
-
-    if humanoid.WalkSpeed > 16 then
-        humanoid.WalkSpeed = 16
-        status.Text = "STATUS: NORMAL SPEED"
-    else
-        humanoid.WalkSpeed = 28
-        status.Text = "STATUS: SPEED TEST ENABLED"
-    end
-end)
-
-makeButton("RESET MENU POSITION", function()
-    main.Position = UDim2.new(0.5, -160, 0.5, -165)
-    status.Text = "STATUS: POSITION RESET"
-end)
-
-makeButton("CLOSE MENU", function()
-    main.Visible = false
-    reopen.Visible = true
-end)
-
-print("[AXIOM] GUI created:", gui:GetFullName())
+print("[AXIOM] V3 menu loaded")
