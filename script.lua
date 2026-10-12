@@ -1,56 +1,34 @@
 
--- AXIOM VEHICLE SPEED SERVER
--- For vehicles owned/managed by your own Roblox game.
--- Expected vehicle structure:
--- Vehicle Model
---   VehicleSeat
---   VehicleController (this script reads the attribute below)
-
-local Players = game:GetService("Players")
+-- AXIOM VEHICLE SPEED GUI
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local vehicleSpeedEvent =
+    ReplicatedStorage:WaitForChild("AxiomVehicleSpeed")
 
-local event = ReplicatedStorage:FindFirstChild("AxiomVehicleSpeed")
-if not event then
-    event = Instance.new("RemoteEvent")
-    event.Name = "AxiomVehicleSpeed"
-    event.Parent = ReplicatedStorage
-end
+createSection("VEHICLE CONTROL")
 
-local MIN_SPEED = 10
-local MAX_SPEED = 200
+local vehicleSpeedInput = Instance.new("TextBox")
+vehicleSpeedInput.Size = UDim2.new(1, -2, 0, 40)
+vehicleSpeedInput.BackgroundColor3 = CONFIG.Panel
+vehicleSpeedInput.TextColor3 = Color3.new(1, 1, 1)
+vehicleSpeedInput.PlaceholderText = "Vehicle speed: 10 - 200"
+vehicleSpeedInput.Text = "80"
+vehicleSpeedInput.ClearTextOnFocus = false
+vehicleSpeedInput.Font = Enum.Font.Gotham
+vehicleSpeedInput.TextSize = 14
+vehicleSpeedInput.Parent = content
 
-local function getDrivenVehicle(player)
-    local character = player.Character
-    if not character then return nil end
+Instance.new("UICorner", vehicleSpeedInput).CornerRadius =
+    UDim.new(0, 9)
 
-    for _, model in ipairs(workspace:GetDescendants()) do
-        if model:IsA("VehicleSeat")
-            and model.Occupant
-            and model.Occupant.Parent == character then
+createButton("APPLY VEHICLE SPEED", function()
+    local speed = tonumber(vehicleSpeedInput.Text)
 
-            return model
-        end
+    if not speed or speed < 10 or speed > 200 then
+        setStatus("ENTER VEHICLE SPEED 10 - 200",
+            Color3.fromRGB(255, 180, 80))
+        return
     end
 
-    return nil
-end
-
-event.OnServerEvent:Connect(function(player, requestedSpeed)
-    if typeof(requestedSpeed) ~= "number" then return end
-    if requestedSpeed ~= requestedSpeed then return end
-
-    requestedSpeed = math.clamp(
-        requestedSpeed,
-        MIN_SPEED,
-        MAX_SPEED
-    )
-
-    local seat = getDrivenVehicle(player)
-    if not seat then return end
-
-    local vehicle = seat:FindFirstAncestorOfClass("Model")
-    if not vehicle then return end
-
-    -- Attribute consumed by your vehicle controller.
-    vehicle:SetAttribute("AxiomTargetSpeed", requestedSpeed)
+    vehicleSpeedEvent:FireServer(speed)
+    setStatus("VEHICLE SPEED REQUEST SENT")
 end)
